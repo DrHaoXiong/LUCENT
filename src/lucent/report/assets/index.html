@@ -35,7 +35,6 @@
         <fieldset class="evidence-filters"><legend>Candidate evidence</legend>
           <label><input type="radio" name="evidence" value="evaluable"><span>Evaluable results</span><small id="count-evaluable"></small></label>
           <label><input type="radio" name="evidence" value="nominal"><span>Nominal p &lt; 0.05</span><small id="count-nominal"></small></label>
-          <label><input type="radio" name="evidence" value="adjusted"><span id="adjusted-filter-label">Adjusted &lt; 0.05</span><small id="count-adjusted"></small></label>
           <label><input type="radio" name="evidence" value="all"><span>Full candidate ledger</span><small id="count-all"></small></label>
         </fieldset>
         <div id="version-note" class="method-note"></div>
@@ -50,7 +49,7 @@
           <button id="export-png" class="icon-action" type="button" title="Export a PNG with legend and version">PNG</button><button id="export-svg" type="button" title="Download the current spatial view as editable vectors">SVG</button><button id="export-pdf" type="button" title="Open a vector figure for Save as PDF">PDF</button>
         </div>
         <div id="canvas-wrap" class="canvas-wrap"><canvas id="spatial-canvas" tabindex="0" aria-label="Spatial spots and candidate channel edges. Scroll to zoom, drag to pan, or use Select to inspect a region."></canvas><div id="canvas-status" class="canvas-status" role="status">Select a section</div><div id="canvas-tooltip" class="canvas-tooltip" hidden></div><span class="interaction-hint" id="interaction-hint">Scroll to zoom · drag to pan</span></div>
-        <div class="view-settings"><label class="inline-field">Color by<select id="color-mode" aria-label="Spot colors"><option value="state">Cell / spot states</option></select></label><label class="switch-label"><input id="show-edges" type="checkbox" checked>Channel edges</label><label class="switch-label"><input id="highlight-adjusted" type="checkbox"><span id="highlight-label">Adjusted-result highlight</span></label><label class="switch-label" id="image-control" hidden><input id="show-image" type="checkbox" checked>Tissue image</label></div>
+        <div class="view-settings"><label class="inline-field">Color by<select id="color-mode" aria-label="Spot colors"><option value="state">Cell / spot states</option></select></label><label class="switch-label"><input id="show-edges" type="checkbox" checked>Channel edges</label><label class="switch-label" id="image-control" hidden><input id="show-image" type="checkbox" checked>Tissue image</label></div>
         <div class="plot-legend"><div class="evidence-legend"><span>Candidate-level −log₁₀(p)</span><div class="color-ramp"></div><div class="ramp-ticks"><span>0</span><span>3</span><span>≥ 6</span></div></div><div class="plot-summary" id="plot-summary"></div></div>
         <div id="state-legend" class="state-legend" aria-label="State legend"></div>
         <p class="plot-caveat">Color and width: candidate-level p · arrows: ligand → receptor.</p>
@@ -60,6 +59,7 @@
         <div class="selected-header"><span class="eyebrow">SELECTED CANDIDATE</span><h2 id="selected-lr">Select a candidate</h2><p id="selected-states"></p><span id="selected-context" class="context-chip"></span></div>
         <div id="selected-stats" class="selected-stats"></div>
         <p id="selected-status" class="selected-status"></p>
+        <details id="selected-statistics" class="saved-diagnostics" hidden></details>
         <details id="selected-diagnostics" class="saved-diagnostics" hidden></details>
         <div class="evidence-tabs" role="tablist" aria-label="Evidence type"><button id="tab-genetics" class="active" role="tab" aria-selected="true" aria-controls="genetics-content" type="button">Genetic support</button><button id="tab-donors" role="tab" aria-selected="false" aria-controls="donors-content" type="button">Donor evidence</button></div>
         <div id="genetics-content" class="evidence-content" role="tabpanel" aria-labelledby="tab-genetics"></div>
@@ -69,7 +69,7 @@
 
     <section class="panel candidates" aria-label="Candidate channel table">
       <div class="candidate-heading"><div><h2>Candidate channels <span id="candidate-count" class="count-badge">0</span></h2><p id="table-caption">Each row is one channel × context × state-pair hypothesis.</p></div><button id="export-tsv" type="button">↓ Export filtered TSV</button></div>
-      <div class="table-scroll"><table id="candidate-table"><thead><tr><th>LR pair / channel</th><th>Sender → receiver</th><th>Context</th><th><button data-sort="score" type="button">Score ↕</button></th><th><button data-sort="p" id="p-heading" type="button">p ↕</button></th><th><button data-sort="q" id="q-heading" type="button">Adjusted value ↕</button></th><th>Result status</th></tr></thead><tbody id="candidate-rows"></tbody></table><div id="table-empty" class="empty-state" hidden>No candidates match these filters. Select “Full candidate ledger” to include entries that have not been computed.</div></div>
+      <div class="table-scroll"><table id="candidate-table"><thead><tr><th>LR pair / channel</th><th>Sender → receiver</th><th>Context</th><th><button data-sort="score" type="button">Score ↕</button></th><th><button data-sort="p" id="p-heading" type="button">p ↕</button></th><th>Result status</th></tr></thead><tbody id="candidate-rows"></tbody></table><div id="table-empty" class="empty-state" hidden>No candidates match these filters. Select “Full candidate ledger” to include entries that have not been computed.</div></div>
       <div class="table-footer"><span id="table-range"></span><div><button id="page-prev" type="button" aria-label="Previous page">←</button><span id="page-label"></span><button id="page-next" type="button" aria-label="Next page">→</button></div></div>
     </section>
     <footer class="report-footer"><span>LUCENT · Traceable spatial evidence</span><span id="footer-version"></span><a href="downloads/bundle.json" download>Complete data JSON ↗</a></footer>

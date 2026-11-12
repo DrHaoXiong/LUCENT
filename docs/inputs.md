@@ -74,6 +74,10 @@ The map retains all supplied spots or cells and their annotations. An optional r
 
 The interface and exported figures use Times New Roman, with Times and serif fallbacks. Gene symbols are italicized in candidate labels, expression legends and genetic evidence; identifiers, tissue labels and numbers remain upright. Install Times New Roman on the viewing computer for an exact font match.
 
+### Association evidence
+
+The default candidate view shows the coordination score and spatial association p value, with a `Nominal p < 0.05` filter. Supplied multiple-testing adjustments and the corresponding family size appear under **Statistical details**. JSON and TSV downloads retain these values; figure exports show the score and spatial p value.
+
 ### Figure export
 
 Select a channel and section, set the color mode and zoom, then use the spatial toolbar:

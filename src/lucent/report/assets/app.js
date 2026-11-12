@@ -98,9 +98,14 @@
     if (/^[=+@]/.test(text) || /^-[^\d.]/.test(text)) text = "'" + text;
     return text;
   }
+  function familySize(unit, version) {
+    const result=resultFor(unit,version.id);
+    return result && result.family_size != null ? result.family_size :
+      version.family_sizes && unit && version.family_sizes[unit.context] != null ? version.family_sizes[unit.context] : version.family_size;
+  }
   function unitsTSV(units, version) {
     const columns = ['unit_id','channel_id','lr_pair','context','sender_state','receiver_state','ligand_genes','receptor_genes','version','score','p','q','p_label','q_label','adjustment_method','family_size','status','evaluable'];
-    const rows = units.map(unit => { const r = resultFor(unit, version.id) || {}; return [unit.unit_id,unit.channel_id,unit.lr_pair,unit.context,unit.sender_state,unit.receiver_state,(unit.ligand_genes || []).join(';'),(unit.receptor_genes || []).join(';'),version.id,r.score,r.p,r.q,version.p_label || 'p',adjustment(version).kind === 'holm' ? 'Holm adjusted p' : version.q_label || adjustment(version).label,version.adjustment_method,version.family_size,r.status,r.evaluable].map(tsvCell).join('\t'); });
+    const rows = units.map(unit => { const r = resultFor(unit, version.id) || {}; return [unit.unit_id,unit.channel_id,unit.lr_pair,unit.context,unit.sender_state,unit.receiver_state,(unit.ligand_genes || []).join(';'),(unit.receptor_genes || []).join(';'),version.id,r.score,r.p,r.q,version.p_label || 'p',adjustment(version).kind === 'holm' ? 'Holm adjusted p' : version.q_label || adjustment(version).label,version.adjustment_method,familySize(unit,version),r.status,r.evaluable].map(tsvCell).join('\t'); });
     return columns.join('\t') + '\r\n' + rows.join('\r\n') + '\r\n';
   }
   function fitScaleForBounds(bounds, width, height) {
@@ -122,7 +127,7 @@
   }
   const sectionEvidence = metadata => /^(single_embryo_section|paired_embryo_sections)$/.test(metadata.analysis_scope || '');
   const replicateLabel = metadata => metadata.replicate_label || 'Donor';
-  const logic = { finite, probability, resultFor, evaluable, unavailableStatus, adjustment, missingLabel, displayStatus, formatNumber, evidencePass, geneticSearchIndex, filterUnits, sortUnits, pColor, orientedEdges, tsvCell, unitsTSV, fitScaleForBounds, resizedView, pointKindInfo, savedDiagnostic, sectionEvidence, replicateLabel };
+  const logic = { finite, probability, resultFor, evaluable, unavailableStatus, adjustment, missingLabel, displayStatus, formatNumber, evidencePass, geneticSearchIndex, filterUnits, sortUnits, pColor, orientedEdges, tsvCell, familySize, unitsTSV, fitScaleForBounds, resizedView, pointKindInfo, savedDiagnostic, sectionEvidence, replicateLabel };
   root.LUCENT_LOGIC = logic;
   if (typeof module === 'object' && module.exports) module.exports = logic;
   if (typeof document === 'undefined') return;
@@ -218,21 +223,15 @@
   function updateVersion() {
     const v = state.version, adj = adjustment(v);
     setText('evaluable-units', report.units.filter(u => evaluable(resultFor(u, v.id))).length.toLocaleString());
-    setText('adjusted-filter-label', adj.kind === 'holm' ? 'Holm adjusted p < 0.05' : adj.kind === 'fdr' ? adj.label + ' < 0.05' : 'Adjusted < 0.05');
-    setText('highlight-label', adj.highlight);
-    $('highlight-adjusted').disabled = !adj.eligible;
-    if (!adj.eligible) { state.highlight = false; $('highlight-adjusted').checked = false; }
     setText('p-heading', (v.p_label || 'p') + ' ↕');
-    setText('q-heading', correctionLabel() + ' ↕');
-    setText('version-note', [displayStatus(v.status), v.adjustment_method ? 'Adjustment: ' + v.adjustment_method + (v.family_size != null ? ' · N = ' + v.family_size : '') : 'Adjustment: not provided'].join('\n'));
-    $('version-note').style.whiteSpace = 'pre-line';
-    setText('footer-version', 'Version ' + v.id + ' · ' + (v.adjustment_method || 'Adjustment unspecified') + ' · schema ' + (metadata.schema_version || '—'));
+    setText('version-note', displayStatus(v.status));
+    setText('footer-version', 'Version ' + v.id + ' · schema ' + (metadata.schema_version || '—'));
     document.querySelectorAll('input[name=evidence]').forEach(el => { el.checked = el.value === state.filters.evidence; });
   }
   function baseFilters() { return { ...state.filters, evidence: 'all' }; }
   function updateCandidates(keepSelection = true) {
     const base = filterUnits(report.units, baseFilters(), state.version, geneticSearch);
-    for (const mode of ['all', 'evaluable', 'nominal', 'adjusted']) setText('count-' + mode, base.filter(u => evidencePass(resultFor(u, state.version.id), mode, state.version)).length.toLocaleString());
+    for (const mode of ['all', 'evaluable', 'nominal']) setText('count-' + mode, base.filter(u => evidencePass(resultFor(u, state.version.id), mode, state.version)).length.toLocaleString());
     state.filtered = sortUnits(filterUnits(report.units, state.filters, state.version, geneticSearch), state.version.id, state.sort, state.ascending);
     state.page = Math.min(state.page, Math.max(0, Math.ceil(state.filtered.length / state.pageSize) - 1));
     if (!keepSelection || !state.selected || !state.filtered.some(u => u.unit_id === state.selected.unit_id)) state.selected = state.filtered.find(u => u.unit_id === metadata.default_unit_id) || state.filtered[0] || null;
@@ -248,7 +247,7 @@
       const r = resultFor(unit, state.version.id), row = node('tr', state.selected && state.selected.unit_id === unit.unit_id ? 'selected' : '');
       row.tabIndex = 0; row.setAttribute('aria-selected', String(!!state.selected && state.selected.unit_id === unit.unit_id)); row.dataset.unitId = unit.unit_id;
       const first = node('td'); first.append(node('strong', null, geneNode(candidateLabel(unit))), node('span', 'subtext', unit.channel_id)); row.append(first, node('td', null, unit.sender_state + ' → ' + unit.receiver_state), node('td', null, unit.context));
-      for (const key of ['score','p','q']) { const value = r && r[key], showValue = finite(value) && (key === 'score' || evaluable(r)); const td = node('td', 'numeric' + (showValue ? '' : ' missing'), showValue ? formatNumber(value, key) : missingLabel(r)); td.title = key + ' = ' + exact(value) + (!showValue && finite(value) ? ' · source placeholder' : ''); row.append(td); }
+      for (const key of ['score','p']) { const value = r && r[key], showValue = finite(value) && (key === 'score' || evaluable(r)); const td = node('td', 'numeric' + (showValue ? '' : ' missing'), showValue ? formatNumber(value, key) : missingLabel(r)); td.title = key + ' = ' + exact(value) + (!showValue && finite(value) ? ' · source placeholder' : ''); row.append(td); }
       const status = node('td'), dot = node('i', 'status-dot' + (evaluable(r) ? '' : missingLabel(r) === 'Not evaluable' ? ' unavailable' : ' pending'));
       status.append(dot, document.createTextNode(r ? displayStatus(r.status, r) : missingLabel(r))); row.append(status);
       row.addEventListener('click', () => selectUnit(unit));
@@ -325,20 +324,19 @@
 
   function statCell(label, value, r, key) {
     const cell = node('div', 'stat-cell'); cell.append(node('label', null, label));
-    const showValue = finite(value) && evaluable(r);
+    const showValue = finite(value) && (key === 'score' || evaluable(r));
     const strong = node('strong', showValue ? '' : 'pending', showValue ? formatNumber(value, key) : missingLabel(r));
     strong.title = label + ' = ' + exact(value) + (!showValue && finite(value) ? ' · source placeholder' : ''); cell.append(strong); return cell;
   }
   function renderEvidence() {
     const unit = state.selected, r = currentResult(), stats = $('selected-stats'); empty(stats);
-    renderDiagnostics(r);
+    renderStatistics(unit, r); renderDiagnostics(r);
     if (!unit) { setText('selected-lr', 'No candidate selected'); setText('selected-states', 'Adjust the filters to browse candidates.'); setText('selected-context', ''); setText('selected-status', ''); empty($('genetics-content')); empty($('donors-content')); return; }
     $('selected-lr').replaceChildren(geneNode(candidateLabel(unit)));
     setText('selected-states', unit.sender_state + ' → ' + unit.receiver_state);
     setText('selected-context', unit.context);
-    stats.append(statCell(state.version.p_label || 'Candidate p', r && r.p, r, 'p'), statCell(correctionLabel(), r && r.q, r, 'q'));
-    const score = r && finite(r.score) ? formatNumber(r.score) : missingLabel(r);
-    setText('selected-status', 'Score ' + score + ' · ' + (r ? displayStatus(r.status, r) : 'No result in this version') + (!evaluable(r) && r && (finite(r.p) || finite(r.q)) ? '\nStored placeholders: p = ' + exact(r.p) + '; Adjusted value = ' + exact(r.q) : ''));
+    stats.append(statCell('Coordination score', r && r.score, r, 'score'), statCell(state.version.p_label || 'Spatial association p', r && r.p, r, 'p'));
+    setText('selected-status', r ? displayStatus(r.status, r) : 'No result in this version');
     $('selected-status').title = 'Hypothesis ' + unit.unit_id;
     if (r && r.evidence_scope) $('selected-status').append(document.createTextNode('\n' + r.evidence_scope));
     $('selected-status').style.whiteSpace = 'pre-line';
@@ -348,6 +346,17 @@
     const list = node('dl', 'kv');
     for (const [label,value,title] of items) { list.append(node('dt', null, label)); const dd = node('dd', null, value == null || value === '' ? 'Not provided' : value); if (title) dd.title = title; list.append(dd); }
     return list;
+  }
+  function renderStatistics(unit, result) {
+    const container=$('selected-statistics'); empty(container);
+    container.hidden=!unit || (!state.version.adjustment_method && !(result && finite(result.q)));
+    if(container.hidden)return;
+    const q=result && result.q;
+    const value=finite(q) ? formatNumber(q,'q') : 'Not provided';
+    const items=[[correctionLabel(),value,'Source value = '+exact(q)],
+      ['Adjustment method',state.version.adjustment_method],['Hypotheses in family',familySize(unit,state.version)]];
+    if(result && !evaluable(result) && (finite(result.p)||finite(q)))items.push(['Stored placeholder p',exact(result.p)]);
+    container.append(node('summary',null,'Statistical details'),kv(items));
   }
   function renderDiagnostics(result) {
     const container = $('selected-diagnostics'); empty(container);
@@ -408,7 +417,7 @@
     setText('plot-summary', state.edges.length.toLocaleString() + ' matching spatial edges · ' + (evaluable(r) ? 'Candidate p = ' + formatNumber(r.p, 'p') : missingLabel(r) + ' (gray)') + (sig ? '\n' + adj.label + ' < 0.05 · dark outline' : '') + (state.gene ? '\nExpression: ' + state.gene + ' · ' + (state.section.expression_label || state.sectionMeta.expression_label || 'Source values') : ''));
     $('plot-summary').style.whiteSpace = 'pre-line';
     if(state.gene){const summary=$('plot-summary'),prefix=summary.textContent.split('\nExpression: ')[0];summary.replaceChildren(document.createTextNode(prefix+'\nExpression: '),geneNode(state.gene),document.createTextNode(' · '+(state.section.expression_label||state.sectionMeta.expression_label||'Source values')));}
-    $('plot-summary').title = 'Candidate p = ' + exact(r && r.p) + '; ' + correctionLabel() + ' = ' + exact(r && r.q) + '\nColor domain: 0–6.';
+    $('plot-summary').title = 'Candidate p = ' + exact(r && r.p) + '\nColor domain: 0–6.';
   }
   function expressionDomain() {
     if (!state.gene || !state.section) return null;
@@ -541,14 +550,14 @@
     const output=document.createElement('canvas'),scale=2,w=Math.max(820,Math.round(width)),plotHeight=Math.round(height*w/width),header=106,footer=130;
     output.width=w*scale;output.height=(plotHeight+header+footer)*scale;
     const g=output.getContext('2d');g.scale(scale,scale);g.fillStyle='#fff';g.fillRect(0,0,w,output.height/scale);g.fillStyle='#245d82';g.font='bold 22px "Times New Roman",Times,serif';g.fillText('LUCENT  /  ',24,34);const titleX=24+g.measureText('LUCENT  /  ').width;canvasGeneText(g,state.selected?candidateLabel(state.selected):'Spatial section',titleX,34,w-titleX-24);
-    g.fillStyle='#525d68';g.font='12px "Times New Roman",Times,serif';g.fillText((state.sectionMeta.label||state.sectionMeta.id)+' · '+state.sectionMeta.context+' · '+replicateLabel(metadata)+' '+state.sectionMeta.donor_id+' · '+currentPointKind().description,24,58,w-48);g.fillText('Version: '+state.version.id+' | '+(state.version.label||'')+' | '+(state.version.adjustment_method||'adjustment unavailable'),24,79,w-48);
+    g.fillStyle='#525d68';g.font='12px "Times New Roman",Times,serif';g.fillText((state.sectionMeta.label||state.sectionMeta.id)+' · '+state.sectionMeta.context+' · '+replicateLabel(metadata)+' '+state.sectionMeta.donor_id+' · '+currentPointKind().description,24,58,w-48);g.fillText('Version: '+state.version.id+' | '+(state.version.label||''),24,79,w-48);
     g.drawImage(canvas,0,header,w,plotHeight);
     const r=currentResult(),y=header+plotHeight+23;
-    g.fillStyle='#28323c';g.fillText((evaluable(r)?'Candidate-level ':r&&finite(r.p)?'Source placeholder · ':missingLabel(r)+' · ')+(state.version.p_label||'p')+' = '+exact(r&&r.p)+'  |  '+correctionLabel()+' = '+exact(r&&r.q)+'  |  '+state.edges.length+' matching spatial edges',24,y,w-48);
+    g.fillStyle='#28323c';g.fillText((evaluable(r)?'Candidate-level ':r&&finite(r.p)?'Source placeholder · ':missingLabel(r)+' · ')+(state.version.p_label||'p')+' = '+exact(r&&r.p)+'  |  '+state.edges.length+' matching spatial edges',24,y,w-48);
     const gradient=g.createLinearGradient(24,0,220,0);ramp.forEach((c,i)=>gradient.addColorStop(i/(ramp.length-1),'rgb('+c.join(',')+')'));g.fillStyle=gradient;g.fillRect(24,y+14,196,8);g.fillStyle='#525d68';g.font='10px "Times New Roman",Times,serif';g.fillText('−log₁₀(p):  0                      3                       ≥6',24,y+37);
     if(state.gene){canvasGeneText(g,[{text:'Expression: ',italic:false},...geneRuns(state.gene),{text:' · '+(state.section.expression_label||state.sectionMeta.expression_label||'source values'),italic:false}],245,y+22,w-269);}else g.fillText('States: '+unique(state.section.spots.map(s=>s.state)).join(' · '),245,y+22,w-269);
     g.fillText('Color and width: candidate-level p. Arrows: ligand → receptor. Equal-aspect coordinates.',24,y+61,w-48);
-    g.fillText('Highlight: '+(state.highlight?adjustment(state.version).highlight+' < 0.05':'Off')+' · Edges: '+(state.showEdges?'Shown':'Hidden')+' · Unit: '+((state.sectionMeta.coordinate_system||{}).unit||'source coordinate'),24,y+80,w-48);
+    g.fillText('Edges: '+(state.showEdges?'Shown':'Hidden')+' · Unit: '+((state.sectionMeta.coordinate_system||{}).unit||'source coordinate'),24,y+80,w-48);
     try{output.toBlob(blob=>{if(blob){saveBlob(blob,'LUCENT_'+safeName(state.version.id)+'_'+safeName(state.sectionMeta.id)+'.png');toast('PNG exported.');}},'image/png');}catch(error){toast('Image export blocked. Turn off the tissue image and retry.');}
   }
   function vectorFigure() {
@@ -579,7 +588,6 @@
     const r=currentResult(),parts=[];
     if(r&&finite(r.score))parts.push('Coordination score = '+formatNumber(r.score));
     if(evaluable(r)&&probability(r.p))parts.push('p = '+formatNumber(r.p,'p'));
-    if(r&&probability(r.q))parts.push(correctionLabel()+' = '+formatNumber(r.q,'p'));
     if(parts.length)line(parts.join('   |   '),12,false,'#525d68');
     y+=8;const plotY=y;y+=plotHeight+19;
     line('Coordinates: '+((state.sectionMeta.coordinate_system||{}).unit||'source units')+'   ·   '+(state.showEdges?state.edges.length+' matching edges':'Edges hidden'),11,false,'#525d68');
@@ -655,7 +663,6 @@
     $('reset-view').addEventListener('click',fitView);
     $('color-mode').addEventListener('change',()=>{state.gene=$('color-mode').value.startsWith('gene:')?$('color-mode').value.slice(5):'';renderStateLegend();updatePlotSummary();requestDraw();});
     $('show-edges').addEventListener('change',()=>{state.showEdges=$('show-edges').checked;requestDraw();});
-    $('highlight-adjusted').addEventListener('change',()=>{state.highlight=$('highlight-adjusted').checked;updatePlotSummary();requestDraw();});
     $('show-image').addEventListener('change',()=>{state.showImage=$('show-image').checked;requestDraw();});
     for(const name of ['genetics','donors'])$('tab-'+name).addEventListener('click',()=>{for(const tab of ['genetics','donors']){$('tab-'+tab).classList.toggle('active',tab===name);$('tab-'+tab).setAttribute('aria-selected',String(tab===name));$(tab+'-content').hidden=tab!==name;}});
     $('page-prev').addEventListener('click',()=>{state.page--;renderTable();document.querySelector('.table-scroll').scrollTop=0;});
