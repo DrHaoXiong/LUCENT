@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>__LUCENT_TITLE__</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="LUCENT home"><span class="brand-mark">L</span><span>LUCENT<small>SPATIAL EVIDENCE EXPLORER</small></span></a>
+    <div class="report-heading"><h1 id="report-title">Spatial Evidence Explorer</h1><p id="report-subtitle">Loading the local report…</p></div>
+    <div class="version-control"><label for="version">Result version</label><select id="version" aria-label="Result version"></select></div>
+    <span class="offline-badge"><i></i> Offline report</span>
+  </header>
+  <main id="app">
+    <div id="global-error" class="error-banner" role="alert" hidden></div>
+    <section class="overview" aria-label="Report overview">
+      <div class="overview-copy"><span class="eyebrow">FROM CANDIDATE CHANNELS TO TISSUE SPACE</span><p id="claim"></p></div>
+      <div class="overview-stat"><strong id="total-units">—</strong><span>Candidate hypotheses</span></div>
+      <div class="overview-stat"><strong id="evaluable-units">—</strong><span>Evaluable in this version</span></div>
+      <div class="overview-stat"><strong id="section-count">—</strong><span>Tissue sections</span></div>
+    </section>
+    <div class="workspace">
+      <aside class="panel filters" aria-label="Filters">
+        <div class="panel-heading"><h2>Browse &amp; filter</h2><button id="clear-filters" class="text-button" type="button">Reset</button></div>
+        <div class="filter-group"><label for="context">Tissue / context</label><select id="context"></select></div>
+        <div class="filter-group"><label for="donor"><span id="replicate-label">Donor</span> <span class="label-note">Spatial view</span></label><select id="donor"></select></div>
+        <div class="filter-group"><label for="section">Section</label><select id="section"></select></div>
+        <div class="filter-divider"></div>
+        <div class="filter-group"><label for="sender">Sender state</label><select id="sender"></select></div>
+        <div class="filter-group"><label for="receiver">Receiver state</label><select id="receiver"></select></div>
+        <div class="filter-group"><label for="search">Search candidates</label><input id="search" type="search" placeholder="LR, gene, SNP / rsID, state" autocomplete="off"></div>
+        <fieldset class="evidence-filters"><legend>Candidate evidence</legend>
+          <label><input type="radio" name="evidence" value="evaluable"><span>Evaluable results</span><small id="count-evaluable"></small></label>
+          <label><input type="radio" name="evidence" value="nominal"><span>Nominal p &lt; 0.05</span><small id="count-nominal"></small></label>
+          <label><input type="radio" name="evidence" value="adjusted"><span id="adjusted-filter-label">Adjusted &lt; 0.05</span><small id="count-adjusted"></small></label>
+          <label><input type="radio" name="evidence" value="all"><span>Full candidate ledger</span><small id="count-all"></small></label>
+        </fieldset>
+        <div id="version-note" class="method-note"></div>
+        <details class="source-details"><summary>Data &amp; provenance</summary><div id="sources"></div></details>
+      </aside>
+
+      <section class="panel spatial" aria-label="Spatial view">
+        <div class="spatial-header"><div><span class="eyebrow">SPATIAL VIEW</span><h2 id="section-title">Tissue sections</h2><p id="section-description"></p></div><span class="coordinate-badge" id="coordinate-label">Coordinates</span></div>
+        <div class="plot-toolbar">
+          <div class="segmented" aria-label="Interaction mode"><button id="mode-pan" class="active" type="button" title="Drag to pan; scroll to zoom" aria-pressed="true">↔ Pan</button><button id="mode-box" type="button" title="Drag a rectangle to zoom into a region" aria-pressed="false">▧ Select</button></div>
+          <button id="reset-view" type="button" title="Fit the complete section">Reset view</button>
+          <button id="export-png" class="icon-action" type="button" title="Export a PNG with legend and version">↓ PNG</button>
+        </div>
+        <div id="canvas-wrap" class="canvas-wrap"><canvas id="spatial-canvas" tabindex="0" aria-label="Spatial spots and candidate channel edges. Scroll to zoom, drag to pan, or use Select to inspect a region."></canvas><div id="canvas-status" class="canvas-status" role="status">Select a section</div><div id="canvas-tooltip" class="canvas-tooltip" hidden></div><span class="interaction-hint" id="interaction-hint">Scroll to zoom · drag to pan</span></div>
+        <div class="view-settings"><label class="inline-field">Color by<select id="color-mode" aria-label="Spot colors"><option value="state">Cell / spot states</option></select></label><label class="switch-label"><input id="show-edges" type="checkbox" checked>Channel edges</label><label class="switch-label"><input id="highlight-adjusted" type="checkbox"><span id="highlight-label">Adjusted-result highlight</span></label><label class="switch-label" id="image-control" hidden><input id="show-image" type="checkbox" checked>Tissue image</label></div>
+        <div class="plot-legend"><div class="evidence-legend"><span>Candidate-level −log₁₀(p)</span><div class="color-ramp"></div><div class="ramp-ticks"><span>0</span><span>3</span><span>≥ 6</span></div></div><div class="plot-summary" id="plot-summary"></div></div>
+        <div id="state-legend" class="state-legend" aria-label="State legend"></div>
+        <p class="plot-caveat">Color and width: candidate-level p · arrows: ligand → receptor.</p>
+      </section>
+
+      <aside class="panel evidence-panel" aria-label="Candidate evidence details">
+        <div class="selected-header"><span class="eyebrow">SELECTED CANDIDATE</span><h2 id="selected-lr">Select a candidate</h2><p id="selected-states"></p><span id="selected-context" class="context-chip"></span></div>
+        <div id="selected-stats" class="selected-stats"></div>
+        <p id="selected-status" class="selected-status"></p>
+        <details id="selected-diagnostics" class="saved-diagnostics" hidden></details>
+        <div class="evidence-tabs" role="tablist" aria-label="Evidence type"><button id="tab-genetics" class="active" role="tab" aria-selected="true" aria-controls="genetics-content" type="button">Genetic support</button><button id="tab-donors" role="tab" aria-selected="false" aria-controls="donors-content" type="button">Donor evidence</button></div>
+        <div id="genetics-content" class="evidence-content" role="tabpanel" aria-labelledby="tab-genetics"></div>
+        <div id="donors-content" class="evidence-content" role="tabpanel" aria-labelledby="tab-donors" hidden></div>
+      </aside>
+    </div>
+
+    <section class="panel candidates" aria-label="Candidate channel table">
+      <div class="candidate-heading"><div><h2>Candidate channels <span id="candidate-count" class="count-badge">0</span></h2><p id="table-caption">Each row is one channel × context × state-pair hypothesis.</p></div><button id="export-tsv" type="button">↓ Export filtered TSV</button></div>
+      <div class="table-scroll"><table id="candidate-table"><thead><tr><th>LR pair / channel</th><th>Sender → receiver</th><th>Context</th><th><button data-sort="score" type="button">Score ↕</button></th><th><button data-sort="p" id="p-heading" type="button">p ↕</button></th><th><button data-sort="q" id="q-heading" type="button">Adjusted value ↕</button></th><th>Result status</th></tr></thead><tbody id="candidate-rows"></tbody></table><div id="table-empty" class="empty-state" hidden>No candidates match these filters. Select “Full candidate ledger” to include entries that have not been computed.</div></div>
+      <div class="table-footer"><span id="table-range"></span><div><button id="page-prev" type="button" aria-label="Previous page">←</button><span id="page-label"></span><button id="page-next" type="button" aria-label="Next page">→</button></div></div>
+    </section>
+    <footer class="report-footer"><span>LUCENT · Traceable spatial evidence</span><span id="footer-version"></span><a href="downloads/bundle.json" download>Complete data JSON ↗</a></footer>
+  </main>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="data/report.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

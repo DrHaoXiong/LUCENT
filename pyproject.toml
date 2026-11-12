@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lucent"
+version = "0.1.0"
+description = "Locus-traceable and uncertainty-calibrated spatial cell-cell communication evidence"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26,<3", "scipy>=1.11,<2", "threadpoolctl>=3.2,<4"]
+
+[project.scripts]
+lucent = "lucent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"lucent.report" = ["assets/*.js", "assets/*.html", "assets/*.css"]
