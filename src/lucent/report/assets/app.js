@@ -42,6 +42,16 @@
     return Math.abs(value) >= 10000 || Math.abs(value) < .0001 ? value.toExponential(2) : Number(value.toPrecision(4)).toString();
   }
   const exact = value => finite(value) ? String(value) : 'null';
+  function gwasProbabilityDisplay(link) {
+    if (link && link.p_value_status === 'source_reported_zero') {
+      const logp = link.neglog10p;
+      return logp !== null && logp !== undefined && String(logp).trim() !== '' && Number.isFinite(Number(logp))
+        ? 'Source reported 0; −log₁₀(p) = ' + String(logp) : 'Source reported 0';
+    }
+    if (link && ['below_float_range', 'rounded_at_threshold'].includes(link.p_value_status) && link.p_value_raw != null)
+      return String(link.p_value_raw) + ' (source)';
+    return link && probability(link.gwas_p) ? formatNumber(link.gwas_p, 'p') : 'Not provided';
+  }
   function evidencePass(result, mode, version) {
     if (mode === 'all') return true;
     if (mode === 'evaluable') return evaluable(result);
@@ -127,7 +137,7 @@
   }
   const sectionEvidence = metadata => /^(single_embryo_section|paired_embryo_sections)$/.test(metadata.analysis_scope || '');
   const replicateLabel = metadata => metadata.replicate_label || 'Donor';
-  const logic = { finite, probability, resultFor, evaluable, unavailableStatus, adjustment, missingLabel, displayStatus, formatNumber, evidencePass, geneticSearchIndex, filterUnits, sortUnits, pColor, orientedEdges, tsvCell, familySize, unitsTSV, fitScaleForBounds, resizedView, pointKindInfo, savedDiagnostic, sectionEvidence, replicateLabel };
+  const logic = { finite, probability, resultFor, evaluable, unavailableStatus, adjustment, missingLabel, displayStatus, formatNumber, gwasProbabilityDisplay, evidencePass, geneticSearchIndex, filterUnits, sortUnits, pColor, orientedEdges, tsvCell, familySize, unitsTSV, fitScaleForBounds, resizedView, pointKindInfo, savedDiagnostic, sectionEvidence, replicateLabel };
   root.LUCENT_LOGIC = logic;
   if (typeof module === 'object' && module.exports) module.exports = logic;
   if (typeof document === 'undefined') return;
@@ -381,7 +391,7 @@
       for (const link of values) {
         const card = node('div', 'evidence-card'), top = node('div', 'card-top');
         top.append(node('strong', null, link.rsid || link.variant_id || 'Variant unspecified'), node('span', 'tiny-badge', link.endpoint_role || 'Endpoint')); card.append(top);
-        card.append(kv([['Variant / alleles', link.variant_id], ['rsID', link.rsid], ...(link.variant_role != null ? [['Variant role',link.variant_role]] : []), ['Gene', geneNode([link.gene_symbol, link.gene_id].filter(Boolean).join(' · '))], ['Mapping basis', link.mapping_basis], ...(link.gene_mapping_witness_variant_ids != null ? [['Mapping witnesses',Array.isArray(link.gene_mapping_witness_variant_ids) ? link.gene_mapping_witness_variant_ids.join('; ') : link.gene_mapping_witness_variant_ids]] : []), ['Variant PIP', finite(link.pip) ? formatNumber(link.pip, 'p') : 'Not provided', 'PIP = ' + exact(link.pip)], ['PIP status', link.pip_status], ['GWAS p', probability(link.gwas_p) ? formatNumber(link.gwas_p, 'p') : 'Not provided', 'GWAS p = ' + exact(link.gwas_p)], ['Credible set', link.credible_set], ['Genome build', link.build], ...(link.ld_resolution != null ? [['LD resolution', link.ld_resolution]] : [])]));
+        card.append(kv([['Variant / alleles', link.variant_id], ['rsID', link.rsid], ...(link.variant_role != null ? [['Variant role',link.variant_role]] : []), ['Gene', geneNode([link.gene_symbol, link.gene_id].filter(Boolean).join(' · '))], ['Mapping basis', link.mapping_basis], ...(link.gene_mapping_witness_variant_ids != null ? [['Mapping witnesses',Array.isArray(link.gene_mapping_witness_variant_ids) ? link.gene_mapping_witness_variant_ids.join('; ') : link.gene_mapping_witness_variant_ids]] : []), ['Variant PIP', finite(link.pip) ? formatNumber(link.pip, 'p') : 'Not provided', 'PIP = ' + exact(link.pip)], ['PIP status', link.pip_status], ['GWAS p', gwasProbabilityDisplay(link)], ['Credible set', link.credible_set], ['Genome build', link.build], ...(link.ld_resolution != null ? [['LD resolution', link.ld_resolution]] : [])]));
         if (link.mapping_note) { const details = node('details','source-note'); details.append(node('summary',null,'Mapping note'),node('p','small-note',link.mapping_note)); card.append(details); }
         group.append(card);
       }

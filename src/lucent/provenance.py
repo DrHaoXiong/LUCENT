@@ -1,5 +1,41 @@
 """Core positional mapping and endpoint-resolved genetic provenance."""
 import math
+from decimal import Decimal, InvalidOperation
+
+
+def _qualified_p_value(variant):
+    """Preserve source precision while checking the GWS threshold.
+
+    A reported zero needs an accompanying source -log10(p); it is
+    retained as source text rather than represented as an exact zero in output.
+    """
+    raw = variant['p_value']
+    if isinstance(raw, bool) or raw is None:
+        raise ValueError('p_value must be a valid source probability')
+    try:
+        p = Decimal(str(raw).strip())
+    except InvalidOperation as exc:
+        raise ValueError('p_value must be a valid source probability') from exc
+    if not p.is_finite() or p.is_signed() or p >= Decimal('5e-8'):
+        raise ValueError('mapping requires GWS variants at valid positions')
+    if p.is_zero():
+        try:
+            logp = float(variant.get('neglog10p', ''))
+        except (TypeError, ValueError) as exc:
+            raise ValueError('a source-reported zero requires finite neglog10p') from exc
+        if not math.isfinite(logp) or logp <= -math.log10(5e-8):
+            raise ValueError('a source-reported zero requires GWS neglog10p')
+        variant.update(p_value=None, p_value_raw=str(raw),
+                       p_value_status='source_reported_zero')
+    elif float(p) == 0.0:
+        variant.update(p_value=None, p_value_raw=str(raw),
+                       p_value_status='below_float_range')
+    elif float(p) >= 5e-8:
+        # The exact decimal is significant, but rounding would reach the cutoff.
+        variant.update(p_value=None, p_value_raw=str(raw),
+                       p_value_status='rounded_at_threshold')
+    else:
+        variant['p_value'] = float(p)
 
 
 def core_mapping(variants, genes, *, window_bp=50_000):
@@ -26,8 +62,8 @@ def core_mapping(variants, genes, *, window_bp=50_000):
             raise ValueError('duplicate variant identity')
         seen.add(variant['variant_id'])
         variant['position'] = int(variant['position'])
-        variant['p_value'] = float(variant['p_value'])
-        if variant['position'] < 1 or not 0 < variant['p_value'] < 5e-8:
+        _qualified_p_value(variant)
+        if variant['position'] < 1:
             raise ValueError('mapping requires GWS variants at valid positions')
         if variant.get('pip') in ('', None):
             variant['pip'] = None

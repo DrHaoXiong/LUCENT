@@ -107,5 +107,26 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(ledger),3)
         self.assertEqual({x['endpoint_role'] for x in ledger},{'ligand','receptor'})
 
+    def test_core_preserves_underflow_and_requires_source_evidence(self):
+        genes=[dict(gene_id='G',chrom='1',start=100,end=200)]
+        base=dict(variant_id='v',locus_id='locus',chrom='1',position=150)
+        link=core_mapping([{**base,'p_value':'0.0','neglog10p':'549.014'}],genes)[0]
+        self.assertIsNone(link['p_value'])
+        self.assertEqual(link['p_value_raw'],'0.0')
+        self.assertEqual(link['p_value_status'],'source_reported_zero')
+        self.assertEqual(link['neglog10p'],'549.014')
+        link=core_mapping([{**base,'p_value':'1e-500'}],genes)[0]
+        self.assertIsNone(link['p_value'])
+        self.assertEqual(link['p_value_raw'],'1e-500')
+        self.assertEqual(link['p_value_status'],'below_float_range')
+        link=core_mapping([{**base,'p_value':'4.9999999999999999e-8'}],genes)[0]
+        self.assertIsNone(link['p_value'])
+        self.assertEqual(link['p_value_status'],'rounded_at_threshold')
+        for p,logp in [('0.0',None),('0','nan'),('0','inf'),('0','7'),
+                       ('5e-8','9'),('-0.0','549'),('-1e-500','549'),('nan','9')]:
+            with self.subTest(p=p,logp=logp):
+                with self.assertRaises(ValueError):
+                    core_mapping([{**base,'p_value':p,'neglog10p':logp}],genes)
+
 if __name__=='__main__':
     unittest.main()

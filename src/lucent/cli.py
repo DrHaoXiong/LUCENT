@@ -32,6 +32,14 @@ def main(argv=None):
     for name in ('variants', 'genes', 'catalogue', 'output'):
         mapping.add_argument('--'+name, required=True, type=Path)
     mapping.add_argument('--window-bp', type=int, default=50000)
+    prepare = commands.add_parser('prepare-spatial', help='Convert a whole H5AD section and saved graph to NPZ')
+    prepare.add_argument('--h5ad', required=True, type=Path)
+    prepare.add_argument('--genes-file', required=True, type=Path, help='One measured gene ID per line, no header')
+    prepare.add_argument('--graph', required=True, type=Path, help='Graph NPZ including unit_ids')
+    prepare.add_argument('--label-key', required=True, help='H5AD obs label column')
+    prepare.add_argument('--coordinates-key', default='spatial', help='H5AD obsm key (default: spatial)')
+    prepare.add_argument('--layer', help='H5AD raw-count layer (default: X)')
+    prepare.add_argument('--output', required=True, type=Path)
     report = commands.add_parser('report', help='Export an offline interactive report')
     report.add_argument('--input', required=True, type=Path)
     report.add_argument('--output', required=True, type=Path)
@@ -53,6 +61,13 @@ def main(argv=None):
             mapped = core_mapping(read_table(args.variants), read_table(args.genes), window_bp=args.window_bp)
             channels, ledger = nominate_channels(mapped, read_table(args.catalogue))
             write_json(args.output, {'channels': channels, 'genetic_links': ledger, 'mapping_records': mapped})
+        elif args.command == 'prepare-spatial':
+            from .prepare import prepare_h5ad_section
+            genes = [line.strip() for line in args.genes_file.read_text(encoding='utf-8-sig').splitlines()
+                     if line.strip() and not line.lstrip().startswith('#')]
+            prepare_h5ad_section(args.h5ad, genes, args.graph, args.output,
+                                 label_key=args.label_key, coordinates_key=args.coordinates_key,
+                                 layer=args.layer)
         else:
             from .report.exporter import main as export
             return export(['--input',str(args.input),'--output',str(args.output)])

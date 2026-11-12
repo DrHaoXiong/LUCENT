@@ -51,6 +51,8 @@ lucent report --input report_bundle.json --output outputs/report
 
 Follow the [practical tutorial](docs/tutorial.md) for an end-to-end example and spatial input preparation. See [input formats](docs/inputs.md) for the complete input requirements. The Python API exposes the same mapping and calibration routines.
 
+For an annotated H5AD section and an existing whole-section graph, install `.[h5ad]` and use `lucent prepare-spatial` to create `section.npz`. Prepared NPZ inputs do not require this optional dependency.
+
 ## Statistical workflow
 
 The coordination score subtracts the product of edge-weighted marginal means from the mean ligand–receptor product. Calibration holds the ligand field and spatial geometry fixed, fits the receiver count distribution and spatial dependence, and refits the reference in outer bootstrap fields. Expression ranks are calculated over the whole section, retaining zero counts and the complete receiver-label pool.

@@ -118,6 +118,17 @@ np.savez_compressed('section.npz', counts=counts, genes=genes,
                     sender=sender, receiver=receiver)
 ```
 
-This is a preparation template, not a Visium/Xenium file importer. Convert platform files, apply QC and choose biologically suitable labels and coordinates upstream; alternatively supply your own directed graph. Save string arrays as ordinary NumPy string arrays, not object arrays, so the file can be loaded without pickle. Match `genes` to the catalogue endpoint IDs. Full requirements and the complete receiver-pool rule are in [inputs.md](inputs.md#spatial-input).
+For an existing QC-passed H5AD file, install the optional H5AD reader and provide a previously constructed full-section graph. `genes.txt` contains one measured gene identifier per line without a header. The graph NPZ contains `unit_ids` in H5AD observation order and `sender`/`receiver` directed edge indices (the historical names `sender_index`/`receiver_index` are also accepted):
+
+```bash
+python -m pip install '.[h5ad]'
+lucent prepare-spatial --h5ad clean_section.h5ad --genes-file genes.txt \
+  --graph whole_section_graph.npz --label-key cell_type \
+  --coordinates-key spatial --output section.npz
+```
+
+The command retains all observations and the saved graph; it fails if graph IDs do not match the H5AD order or if a requested gene is missing. It reads counts from `X` by default; use `--layer counts` if raw counts are stored in a layer. The selected gene columns are converted to a dense matrix, so choose a manageable set of measured endpoints. QC, the choice of labels and graph construction remain upstream. The prepared NPZ can be used without installing the optional H5AD reader.
+
+The array template above also works for other formats after upstream conversion. Save string arrays as ordinary NumPy string arrays, not object arrays, so the file can be loaded without pickle. Match `genes` to the catalogue endpoint IDs. Full requirements and the complete receiver-pool rule are in [inputs.md](inputs.md#spatial-input).
 
 For each selected channel and label pair, create a JSON configuration modeled on the example, set the endpoint IDs and labels, and run `lucent test`. Before scaling up, check one hypothesis and estimate runtime and memory: the spatial reference uses dense receiver-pool operations, so cost depends on pool size as well as the number of hypotheses and simulation draws.

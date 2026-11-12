@@ -6,11 +6,13 @@ All tables are tab-separated. Use consistent chromosome names, gene identifiers 
 
 | Table | Required columns | Optional columns |
 |---|---|---|
-| Qualified variants | `variant_id`, `locus_id`, `chrom`, `position`, `p_value` | `rsid`, `pip`, and other provenance columns |
+| Qualified variants | `variant_id`, `locus_id`, `chrom`, `position`, `p_value` | `rsid`, `pip`, `neglog10p`, and other provenance columns |
 | Gene coordinates | `gene_id`, `chrom`, `start`, `end` | `gene_symbol` |
 | Direct channels | `channel_id`, `ligand`, `receptor` | `evidence` (default `Direct`) |
 
 `variant_id` should encode chromosome, position and both alleles. Variant rows are the GWS variants retained after upstream QC and locus qualification; the `map` command checks GWS significance and performs mapping. LD qualification and raw GWAS harmonization are upstream inputs, rather than operations performed by this command.
+
+When the source reports `p_value` as zero because the probability was not represented, include its original finite `neglog10p` (the source's −log₁₀(p)); it must pass the same genome-wide significance threshold. Mapping records retain `p_value_raw`, `neglog10p` and `p_value_status`, with `p_value` set to null rather than an exact zero. An explicitly supplied positive value below floating-point range is likewise retained as source text. A zero without a qualifying source `neglog10p` is rejected; no probability floor is imputed.
 
 Core mapping retains gene-body overlaps and links within the configured distance from a gene interval (50 kb by default). If a locus has no such links, nearest-gene mapping is applied to its eligible variants, retaining ties. Channels enter when at least one endpoint has a link. The output preserves all variant, locus and endpoint records, with a deduplicated channel list. These commands use single-gene ligand and receptor endpoints.
 
@@ -29,6 +31,8 @@ Core mapping retains gene-body overlaps and links within the configured distance
 | `sender`, `receiver` | e each | Zero-based row indices of directed neighbour edges |
 
 Keep all QC-passed spots/cells of the section, including zero counts. Gene columns may be restricted to the channels of interest. Build the graph over the full section before selecting ordered labels. `lucent.spatial.directed_knn` provides a k-nearest-neighbour graph (default k=8); saved graphs can also be supplied directly.
+
+`lucent prepare-spatial` converts a whole QC-passed H5AD section and a previously built graph into this NPZ format. The graph NPZ must include string `unit_ids` in exactly the H5AD observation order and directed `sender`/`receiver` arrays (or `sender_index`/`receiver_index`). The converter checks their alignment, retains all observations and edges, and selects only the requested measured gene columns. It requires the optional `h5ad` dependency; ordinary NPZ use does not. See the [tutorial](tutorial.md#5-prepare-a-spatial-section-from-your-own-data).
 
 Example `hypothesis.json`:
 
