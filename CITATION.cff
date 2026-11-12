@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: >-
+  If you use LUCENT, please cite the software using the metadata below.
+  A preprint or article citation will be added when available.
+title: "LUCENT: Locus-traceable and Uncertainty-calibrated Cell–cell communication Evidence in Native Tissue"
+type: software
+authors:
+  - name: LUCENT contributors
+version: 0.1.0
+license: MIT
+repository-code: https://github.com/DrHaoXiong/LUCENT
+# Replace the collective authors and add preferred-citation when the author list
+# and the preprint or final article citation are available.

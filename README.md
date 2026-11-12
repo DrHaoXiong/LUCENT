@@ -68,6 +68,14 @@ The coordination score subtracts the product of edge-weighted marginal means fro
 
 Paper-specific benchmarks, figure scripts and research datasets belong to the accompanying reproducibility archive. This repository contains the reusable analysis software.
 
+## Citation
+
+The LUCENT manuscript is in preparation. A link and full citation for the preprint or published article will be added here when available. `CITATION.cff` currently uses a collective project name until the author list is available.
+
+## License
+
+LUCENT software is released under the [MIT License](LICENSE). Third-party inputs retain their own terms; see [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Tests
 
 ```bash
