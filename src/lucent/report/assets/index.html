@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#" aria-label="LUCENT home"><span class="brand-mark">L</span><span>LUCENT<small>SPATIAL EVIDENCE EXPLORER</small></span></a>
+    <a class="brand" href="#" aria-label="LUCENT home"><span>LUCENT<small>SPATIAL EVIDENCE EXPLORER</small></span></a>
     <div class="report-heading"><h1 id="report-title">Spatial Evidence Explorer</h1><p id="report-subtitle">Loading the local report…</p></div>
     <div class="version-control"><label for="version">Result version</label><select id="version" aria-label="Result version"></select></div>
     <span class="offline-badge"><i></i> Offline report</span>
@@ -47,7 +47,7 @@
         <div class="plot-toolbar">
           <div class="segmented" aria-label="Interaction mode"><button id="mode-pan" class="active" type="button" title="Drag to pan; scroll to zoom" aria-pressed="true">↔ Pan</button><button id="mode-box" type="button" title="Drag a rectangle to zoom into a region" aria-pressed="false">▧ Select</button></div>
           <button id="reset-view" type="button" title="Fit the complete section">Reset view</button>
-          <button id="export-png" class="icon-action" type="button" title="Export a PNG with legend and version">↓ PNG</button>
+          <button id="export-png" class="icon-action" type="button" title="Export a PNG with legend and version">PNG</button><button id="export-svg" type="button" title="Download the current spatial view as editable vectors">SVG</button><button id="export-pdf" type="button" title="Open a vector figure for Save as PDF">PDF</button>
         </div>
         <div id="canvas-wrap" class="canvas-wrap"><canvas id="spatial-canvas" tabindex="0" aria-label="Spatial spots and candidate channel edges. Scroll to zoom, drag to pan, or use Select to inspect a region."></canvas><div id="canvas-status" class="canvas-status" role="status">Select a section</div><div id="canvas-tooltip" class="canvas-tooltip" hidden></div><span class="interaction-hint" id="interaction-hint">Scroll to zoom · drag to pan</span></div>
         <div class="view-settings"><label class="inline-field">Color by<select id="color-mode" aria-label="Spot colors"><option value="state">Cell / spot states</option></select></label><label class="switch-label"><input id="show-edges" type="checkbox" checked>Channel edges</label><label class="switch-label"><input id="highlight-adjusted" type="checkbox"><span id="highlight-label">Adjusted-result highlight</span></label><label class="switch-label" id="image-control" hidden><input id="show-image" type="checkbox" checked>Tissue image</label></div>
@@ -76,6 +76,7 @@
   </main>
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="data/report.js"></script>
+  <script src="assets/vector.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>

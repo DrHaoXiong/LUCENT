@@ -8,11 +8,13 @@ deliberately uses the Python standard library only.
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import hashlib
 import html
 import json
 import math
+import mimetypes
 import re
 import shutil
 import sys
@@ -406,7 +408,7 @@ def export_report(bundle: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     destination = Path(output_dir).expanduser().resolve()
     if destination.exists() and (not destination.is_dir() or any(destination.iterdir())):
         raise FileExistsError(f"output directory must be new or empty: {destination}")
-    for name in ("index.html", "app.js", "style.css"):
+    for name in ("index.html", "app.js", "style.css", "vector.js"):
         if not (_ASSETS / name).is_file():
             raise FileNotFoundError(f"bundled report asset is missing: {_ASSETS / name}")
     image_paths = [_image_source(section) for section in bundle["sections"]]
@@ -434,7 +436,9 @@ def export_report(bundle: dict[str, Any], output_dir: Path) -> dict[str, Any]:
             image_file = f"assets/section_{i:04d}{image_path.suffix.lower()}"
             output_image = {**section["image"], "path": image_file}
             summary["image"] = output_image
-            payload["image"] = output_image
+            payload["image"] = {**output_image, "data_uri": "data:" +
+                                (mimetypes.guess_type(image_path.name)[0] or "image/png") +
+                                ";base64," + base64.b64encode(image_path.read_bytes()).decode("ascii")}
             image_copies.append((image_path, image_file))
         section_summaries.append(summary)
         section_payloads.append((file, payload))
@@ -447,7 +451,7 @@ def export_report(bundle: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     for subdir in ("assets", "data", "downloads"):
         (destination / subdir).mkdir()
     (destination / "index.html").write_text(index, encoding="utf-8")
-    for name in ("app.js", "style.css"):
+    for name in ("app.js", "style.css", "vector.js"):
         shutil.copyfile(_ASSETS / name, destination / "assets" / name)
     for source, target in image_copies:
         shutil.copyfile(source, destination / target)

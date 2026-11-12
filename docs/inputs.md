@@ -67,3 +67,19 @@ The lower-level `lucent.calibration.calibrate_count_reference` accepts a complet
 ## Reports
 
 The report bundle has five sections: `metadata`, `units` (channel–context results), `genetic_links`, `donor_evidence` and `sections` (coordinates, labels, edges and expression). `examples/synthetic.py` constructs a complete minimal bundle. The exporter validates cross-references and preserves supplied association and cross-sample results. Exported reports work offline and include downloadable JSON/TSV tables and an output hash manifest.
+
+### Tissue context and typography
+
+The map retains all supplied spots or cells and their annotations. An optional registered tissue image is displayed beneath the spatial overlay and can be toggled on or off. Image bounds and observation coordinates must share the same coordinate system.
+
+The interface and exported figures use Times New Roman, with Times and serif fallbacks. Gene symbols are italicized in candidate labels, expression legends and genetic evidence; identifiers, tissue labels and numbers remain upright. Install Times New Roman on the viewing computer for an exact font match.
+
+### Figure export
+
+Select a channel and section, set the color mode and zoom, then use the spatial toolbar:
+
+- **SVG** downloads an editable vector figure with the current view, annotations and legend.
+- **PDF** opens the same vector figure in a separate print view. Click **Save as PDF**, select the browser PDF destination, use 100% scale and disable headers and footers. The default figure width is 180 mm; height follows the view and legend. This path is tested in Chromium/Edge.
+- **PNG** exports a raster image for quick sharing.
+
+SVG and PDF use the same drawing commands as the on-screen map. Export does not rerun inference. Tissue-image pixels remain raster; points, edges, axes and text are vector elements. Exported SVG metadata retains the selected result, coordinate system and view settings. Existing report folders can be regenerated from their `downloads/bundle.json` with `lucent report` into a new output directory.

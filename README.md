@@ -23,6 +23,10 @@ python examples/synthetic.py --output outputs/example
 
 Open `outputs/example/report/index.html` to explore the spatial map, association result and variant-to-endpoint links. The example generates its own synthetic inputs and uses small bootstrap budgets for a quick run.
 
+The offline report combines the supplied tissue map and annotations, candidate channels, genetic provenance and cross-sample evidence. It uses a white background, Times New Roman and italic gene symbols.
+
+The spatial toolbar exports **SVG**, **PDF** and **PNG**. SVG retains editable vectors. PDF opens a figure-only view: choose **Save as PDF**, select the browser's PDF destination and disable headers and footers. Exports retain the current zoom, channel, color mode and legends. Points, edges and text remain vectors; an optional tissue image retains its original raster representation.
+
 ## Use your data
 
 1. Prepare GWAS variants that pass the chosen QC and locus/LD qualification rules, gene coordinates on the same assembly, and a direct ligand–receptor catalogue.

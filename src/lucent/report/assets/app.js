@@ -69,7 +69,7 @@
       return (ascending ? av - bv : bv - av) || String(a.unit_id).localeCompare(String(b.unit_id));
     });
   }
-  const ramp = [[59,130,156],[88,168,172],[145,184,160],[213,194,127],[220,142,85],[195,82,68]];
+  const ramp = [[198,219,239],[107,174,214],[33,113,181],[8,48,107]];
   function pColor(p) {
     if (!probability(p)) return '#a6ada8';
     const scaled = Math.min(6, p === 0 ? 6 : -Math.log10(p)) / 6 * (ramp.length - 1);
@@ -128,7 +128,7 @@
   if (typeof document === 'undefined') return;
 
   const $ = id => document.getElementById(id);
-  function node(tag, className, text) { const n = document.createElement(tag); if (className) n.className = className; if (text !== undefined && text !== null) n.textContent = String(text); return n; }
+  function node(tag, className, text) { const n = document.createElement(tag); if (className) n.className = className; if (text !== undefined && text !== null) { if(text instanceof Node)n.append(text);else n.textContent = String(text); } return n; }
   function setText(id, text) { $(id).textContent = text == null ? '' : String(text); }
   function empty(element) { element.replaceChildren(); }
   function option(value, label) { const o = node('option', null, label); o.value = value; return o; }
@@ -151,12 +151,30 @@
     mode: 'pan', gene: '', showEdges: true, highlight: false, showImage: true,
     view: null, bounds: null, dragging: null, edges: [], loadToken: 0, hovered: null
   };
-  const canvas = $('spatial-canvas'), ctx = canvas.getContext('2d');
+  const canvas = $('spatial-canvas');
+  let ctx = canvas.getContext('2d');
   let width = 500, height = 430, drawPending = false, toastTimer = 0;
   const sectionPromises = new Map();
-  const colors = ['#73999a','#bc987b','#a2b082','#988aaf','#6d9dba','#bc91a0','#d3b471','#83afa0','#a6a49a','#b29eaa','#99aec2','#c3ad95'];
+  const colors = ['#0072b2','#d55e00','#009e73','#cc79a7','#e69f00','#56b4e9','#666666','#8c6d31','#8172b3','#4c7c6b','#a55165','#7a8793'];
   const stateColors = new Map(unique(report.units.flatMap(u => [u.sender_state, u.receiver_state])).map((name,i) => [name, colors[i % colors.length]]));
   function stateColor(name) { if (!stateColors.has(name)) stateColors.set(name, colors[stateColors.size % colors.length]); return stateColors.get(name); }
+  function geneRuns(value) {
+    return String(value).split(/([A-Za-z][A-Za-z0-9_.-]*)/g).filter(Boolean).map(text=>({text,
+      italic:/^[A-Za-z]/.test(text)&&!/^ENS[A-Z]*[0-9]|^CDB[0-9]/.test(text)}));
+  }
+  function geneNode(value) {
+    const span=node('span');
+    for(const run of geneRuns(value))span.append(node('span',run.italic?'gene-symbol':'gene-identifier',run.text));
+    return span;
+  }
+  function canvasGeneText(g,value,x,y,maxWidth) {
+    const font=g.font,runs=Array.isArray(value)?value:geneRuns(value);
+    const widths=runs.map(run=>{g.font=(run.italic?'italic ':'')+font;return g.measureText(run.text).width;});
+    const scale=Math.min(1,maxWidth/Math.max(1,widths.reduce((a,b)=>a+b,0)));
+    g.save();g.translate(x,y);g.scale(scale,1);let offset=0;
+    runs.forEach((run,i)=>{g.font=(run.italic?'italic ':'')+font;g.fillText(run.text,offset,0);offset+=widths[i];});
+    g.restore();g.font=font;
+  }
   function currentResult() { return resultFor(state.selected, state.version.id); }
   function currentPointKind() { return pointKindInfo(state.sectionMeta && state.sectionMeta.point_kind ? state.sectionMeta : state.section, metadata, state.selected); }
   function correctionLabel() { return adjustment(state.version).label; }
@@ -229,7 +247,7 @@
     for (const unit of state.filtered.slice(offset, offset + state.pageSize)) {
       const r = resultFor(unit, state.version.id), row = node('tr', state.selected && state.selected.unit_id === unit.unit_id ? 'selected' : '');
       row.tabIndex = 0; row.setAttribute('aria-selected', String(!!state.selected && state.selected.unit_id === unit.unit_id)); row.dataset.unitId = unit.unit_id;
-      const first = node('td'); first.append(node('strong', null, candidateLabel(unit)), node('span', 'subtext', unit.channel_id)); row.append(first, node('td', null, unit.sender_state + ' → ' + unit.receiver_state), node('td', null, unit.context));
+      const first = node('td'); first.append(node('strong', null, geneNode(candidateLabel(unit))), node('span', 'subtext', unit.channel_id)); row.append(first, node('td', null, unit.sender_state + ' → ' + unit.receiver_state), node('td', null, unit.context));
       for (const key of ['score','p','q']) { const value = r && r[key], showValue = finite(value) && (key === 'score' || evaluable(r)); const td = node('td', 'numeric' + (showValue ? '' : ' missing'), showValue ? formatNumber(value, key) : missingLabel(r)); td.title = key + ' = ' + exact(value) + (!showValue && finite(value) ? ' · source placeholder' : ''); row.append(td); }
       const status = node('td'), dot = node('i', 'status-dot' + (evaluable(r) ? '' : missingLabel(r) === 'Not evaluable' ? ' unavailable' : ' pending'));
       status.append(dot, document.createTextNode(r ? displayStatus(r.status, r) : missingLabel(r))); row.append(status);
@@ -300,7 +318,7 @@
       else { state.gene = ''; $('color-mode').value = 'state'; }
       const img = section.image || meta.image;
       $('image-control').hidden = !(img && img.path && Array.isArray(img.bounds) && img.bounds.length === 4);
-      if (!$('image-control').hidden) { const image = new Image(); image.onload = () => { if (token === state.loadToken) { state.image = { image, bounds: img.bounds }; requestDraw(); } }; image.onerror = () => { if (token === state.loadToken) toast('The registered image is unavailable. Original spots remain visible.'); }; image.src = img.path; }
+      if (!$('image-control').hidden) { const image = new Image(); image.onload = () => { if (token === state.loadToken) { state.image = { image, bounds: img.bounds }; requestDraw(); } }; image.onerror = () => { if (token === state.loadToken) toast('The registered image is unavailable. Original spots remain visible.'); }; image.src = img.data_uri || img.path; }
       refreshEdges(); fitView(); renderStateLegend();
     } catch (error) { if (token === state.loadToken) { setText('canvas-status', error.message); $('canvas-status').hidden = false; } }
   }
@@ -315,7 +333,7 @@
     const unit = state.selected, r = currentResult(), stats = $('selected-stats'); empty(stats);
     renderDiagnostics(r);
     if (!unit) { setText('selected-lr', 'No candidate selected'); setText('selected-states', 'Adjust the filters to browse candidates.'); setText('selected-context', ''); setText('selected-status', ''); empty($('genetics-content')); empty($('donors-content')); return; }
-    setText('selected-lr', candidateLabel(unit));
+    $('selected-lr').replaceChildren(geneNode(candidateLabel(unit)));
     setText('selected-states', unit.sender_state + ' → ' + unit.receiver_state);
     setText('selected-context', unit.context);
     stats.append(statCell(state.version.p_label || 'Candidate p', r && r.p, r, 'p'), statCell(correctionLabel(), r && r.q, r, 'q'));
@@ -354,7 +372,7 @@
       for (const link of values) {
         const card = node('div', 'evidence-card'), top = node('div', 'card-top');
         top.append(node('strong', null, link.rsid || link.variant_id || 'Variant unspecified'), node('span', 'tiny-badge', link.endpoint_role || 'Endpoint')); card.append(top);
-        card.append(kv([['Variant / alleles', link.variant_id], ['rsID', link.rsid], ...(link.variant_role != null ? [['Variant role',link.variant_role]] : []), ['Gene', [link.gene_symbol, link.gene_id].filter(Boolean).join(' · ')], ['Mapping basis', link.mapping_basis], ...(link.gene_mapping_witness_variant_ids != null ? [['Mapping witnesses',Array.isArray(link.gene_mapping_witness_variant_ids) ? link.gene_mapping_witness_variant_ids.join('; ') : link.gene_mapping_witness_variant_ids]] : []), ['Historical PIP', finite(link.pip) ? formatNumber(link.pip, 'p') : 'Not provided', 'PIP = ' + exact(link.pip)], ['PIP status', link.pip_status], ['GWAS p', probability(link.gwas_p) ? formatNumber(link.gwas_p, 'p') : 'Not provided', 'GWAS p = ' + exact(link.gwas_p)], ['Credible set', link.credible_set], ['Genome build', link.build], ...(link.ld_resolution != null ? [['LD resolution', link.ld_resolution]] : [])]));
+        card.append(kv([['Variant / alleles', link.variant_id], ['rsID', link.rsid], ...(link.variant_role != null ? [['Variant role',link.variant_role]] : []), ['Gene', geneNode([link.gene_symbol, link.gene_id].filter(Boolean).join(' · '))], ['Mapping basis', link.mapping_basis], ...(link.gene_mapping_witness_variant_ids != null ? [['Mapping witnesses',Array.isArray(link.gene_mapping_witness_variant_ids) ? link.gene_mapping_witness_variant_ids.join('; ') : link.gene_mapping_witness_variant_ids]] : []), ['Variant PIP', finite(link.pip) ? formatNumber(link.pip, 'p') : 'Not provided', 'PIP = ' + exact(link.pip)], ['PIP status', link.pip_status], ['GWAS p', probability(link.gwas_p) ? formatNumber(link.gwas_p, 'p') : 'Not provided', 'GWAS p = ' + exact(link.gwas_p)], ['Credible set', link.credible_set], ['Genome build', link.build], ...(link.ld_resolution != null ? [['LD resolution', link.ld_resolution]] : [])]));
         if (link.mapping_note) { const details = node('details','source-note'); details.append(node('summary',null,'Mapping note'),node('p','small-note',link.mapping_note)); card.append(details); }
         group.append(card);
       }
@@ -389,6 +407,7 @@
     const sig = state.highlight && adj.eligible && evaluable(r) && probability(r.q) && r.q < .05;
     setText('plot-summary', state.edges.length.toLocaleString() + ' matching spatial edges · ' + (evaluable(r) ? 'Candidate p = ' + formatNumber(r.p, 'p') : missingLabel(r) + ' (gray)') + (sig ? '\n' + adj.label + ' < 0.05 · dark outline' : '') + (state.gene ? '\nExpression: ' + state.gene + ' · ' + (state.section.expression_label || state.sectionMeta.expression_label || 'Source values') : ''));
     $('plot-summary').style.whiteSpace = 'pre-line';
+    if(state.gene){const summary=$('plot-summary'),prefix=summary.textContent.split('\nExpression: ')[0];summary.replaceChildren(document.createTextNode(prefix+'\nExpression: '),geneNode(state.gene),document.createTextNode(' · '+(state.section.expression_label||state.sectionMeta.expression_label||'Source values')));}
     $('plot-summary').title = 'Candidate p = ' + exact(r && r.p) + '; ' + correctionLabel() + ' = ' + exact(r && r.q) + '\nColor domain: 0–6.';
   }
   function expressionDomain() {
@@ -401,12 +420,12 @@
   function expressionColor(value, domain) {
     if (!finite(value) || !domain) return '#d8ded7';
     const t = domain.max === domain.min ? .5 : (value - domain.min) / (domain.max - domain.min);
-    return 'rgb(' + [229,237,204].map((v,i) => Math.round(v + t * ([29,115,106][i] - v))).join(',') + ')';
+    return 'rgb(' + [239,243,248].map((v,i) => Math.round(v + t * ([33,91,143][i] - v))).join(',') + ')';
   }
   function renderStateLegend() {
     const legend = $('state-legend'); empty(legend);
     if (!state.section) return;
-    if (state.gene) { const d = expressionDomain(); legend.append(node('span', null, d ? state.gene + ': ' + formatNumber(d.min) + ' (light) → ' + formatNumber(d.max) + ' (dark); missing values are gray' : state.gene + ': no valid expression values')); return; }
+    if (state.gene) { const d = expressionDomain(); legend.append(node('span', null, d ? state.gene + ': ' + formatNumber(d.min) + ' (light) → ' + formatNumber(d.max) + ' (dark); missing values are gray' : state.gene + ': no valid expression values')); const item=legend.lastChild; const suffix=item.textContent.slice(state.gene.length); item.replaceChildren(geneNode(state.gene),document.createTextNode(suffix)); return; }
     for (const name of unique(state.section.spots.map(s => s.state))) { const item = node('span'), dot = node('i'); dot.style.background = stateColor(name); item.append(dot, document.createTextNode(name)); legend.append(item); }
   }
   function resizeCanvas() {
@@ -434,7 +453,7 @@
   function requestDraw() { if (drawPending) return; drawPending = true; requestAnimationFrame(() => { drawPending = false; draw(); }); }
   function draw() {
     const dpr = canvas.width / width;
-    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,width,height); ctx.fillStyle='#fbfcf9'; ctx.fillRect(0,0,width,height);
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,width,height); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,width,height);
     if (!state.section || !state.view) return;
     const section=state.section, view=state.view, r=currentResult(), adj=adjustment(state.version);
     const highlighted=state.highlight && adj.eligible && evaluable(r) && probability(r.q) && r.q<.05;
@@ -457,7 +476,7 @@
     if (state.showEdges && state.edges.length) {
       const edgeColor=pColor(evaluable(r) ? r.p : null);
       function drawEdges(outline) {
-        ctx.strokeStyle=outline?'#28483b':edgeColor;ctx.fillStyle=outline?'#28483b':edgeColor;ctx.lineWidth=outline?lineWidth+2:lineWidth;ctx.globalAlpha=outline ? .9 : .83;ctx.lineCap='round';
+        ctx.strokeStyle=outline?'#172b3a':edgeColor;ctx.fillStyle=outline?'#172b3a':edgeColor;ctx.lineWidth=outline?lineWidth+2:lineWidth;ctx.globalAlpha=outline ? .9 : .83;ctx.lineCap='round';
         ctx.beginPath();
         for (const edge of state.edges) { const a=positions[edge[0]],b=positions[edge[1]];if(Math.max(a.x,b.x)<30||Math.min(a.x,b.x)>width||Math.max(a.y,b.y)<0||Math.min(a.y,b.y)>height)continue;ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y); }
         ctx.stroke();
@@ -472,18 +491,18 @@
       }
       ctx.globalAlpha=1;
     }
-    if (state.dragging && state.mode==='box') { const d=state.dragging;ctx.fillStyle='#17695f16';ctx.strokeStyle='#17695f';ctx.lineWidth=1;ctx.setLineDash([5,3]);ctx.fillRect(d.startX,d.startY,d.x-d.startX,d.y-d.startY);ctx.strokeRect(d.startX,d.startY,d.x-d.startX,d.y-d.startY);ctx.setLineDash([]); }
-    if (state.hovered!==null) { const p=positions[state.hovered];if(p){ctx.strokeStyle='#244c3e';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(p.x,p.y,radius+3,0,Math.PI*2);ctx.stroke();} }
+    if (state.dragging && state.mode==='box') { const d=state.dragging;ctx.fillStyle='#245d8216';ctx.strokeStyle='#245d82';ctx.lineWidth=1;ctx.setLineDash([5,3]);ctx.fillRect(d.startX,d.startY,d.x-d.startX,d.y-d.startY);ctx.strokeRect(d.startX,d.startY,d.x-d.startX,d.y-d.startY);ctx.setLineDash([]); }
+    if (state.hovered!==null) { const p=positions[state.hovered];if(p){ctx.strokeStyle='#245d82';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(p.x,p.y,radius+3,0,Math.PI*2);ctx.stroke();} }
     ctx.restore(); drawAxes();
   }
   function drawAxes() {
-    ctx.strokeStyle='#dfe6dd';ctx.fillStyle='#8b9a8a';ctx.lineWidth=.7;ctx.font='9px Arial,sans-serif';ctx.textAlign='center';
+    ctx.strokeStyle='#aeb7c0';ctx.fillStyle='#525d68';ctx.lineWidth=.7;ctx.font='9px "Times New Roman",Times,serif';ctx.textAlign='center';
     ctx.beginPath();ctx.moveTo(35,14);ctx.lineTo(35,height-32);ctx.lineTo(width-14,height-32);ctx.stroke();
     for(let i=0;i<=4;i++) {
       const x=35+(width-49)*i/4,y=14+(height-46)*i/4,worldX=unproject(x,0).x,worldY=orientedY(unproject(0,y).y);
       ctx.fillText(axisNumber(worldX),x,height-17);ctx.save();ctx.textAlign='right';ctx.fillText(axisNumber(worldY),30,y+3);ctx.restore();
     }
-    ctx.textAlign='right';ctx.fillText('x',width-6,height-18);ctx.textAlign='left';ctx.fillText('y',9,11);
+    ctx.textAlign='right';ctx.fillText('x',width-6,height-1);ctx.textAlign='left';ctx.fillText('y',50,15);
   }
   function axisNumber(value) { if(Math.abs(value)>=1e5 || Math.abs(value)>0 && Math.abs(value)<.01)return value.toExponential(1);return Number(value.toPrecision(3)).toString(); }
   function pointer(e) { const rect=canvas.getBoundingClientRect();return {x:e.clientX-rect.left,y:e.clientY-rect.top}; }
@@ -521,17 +540,109 @@
     state.hovered=null;$('canvas-tooltip').hidden=true;canvas.width=canvas.width;draw();
     const output=document.createElement('canvas'),scale=2,w=Math.max(820,Math.round(width)),plotHeight=Math.round(height*w/width),header=106,footer=130;
     output.width=w*scale;output.height=(plotHeight+header+footer)*scale;
-    const g=output.getContext('2d');g.scale(scale,scale);g.fillStyle='#fff';g.fillRect(0,0,w,output.height/scale);g.fillStyle='#17695f';g.font='bold 22px Arial,sans-serif';g.fillText('LUCENT  /  '+(state.selected?candidateLabel(state.selected):'Spatial section'),24,34,w-48);
-    g.fillStyle='#6c7c72';g.font='12px Arial,sans-serif';g.fillText((state.sectionMeta.label||state.sectionMeta.id)+' · '+state.sectionMeta.context+' · '+replicateLabel(metadata)+' '+state.sectionMeta.donor_id+' · '+currentPointKind().description,24,58,w-48);g.fillText('Version: '+state.version.id+' | '+(state.version.label||'')+' | '+(state.version.adjustment_method||'adjustment unavailable'),24,79,w-48);
+    const g=output.getContext('2d');g.scale(scale,scale);g.fillStyle='#fff';g.fillRect(0,0,w,output.height/scale);g.fillStyle='#245d82';g.font='bold 22px "Times New Roman",Times,serif';g.fillText('LUCENT  /  ',24,34);const titleX=24+g.measureText('LUCENT  /  ').width;canvasGeneText(g,state.selected?candidateLabel(state.selected):'Spatial section',titleX,34,w-titleX-24);
+    g.fillStyle='#525d68';g.font='12px "Times New Roman",Times,serif';g.fillText((state.sectionMeta.label||state.sectionMeta.id)+' · '+state.sectionMeta.context+' · '+replicateLabel(metadata)+' '+state.sectionMeta.donor_id+' · '+currentPointKind().description,24,58,w-48);g.fillText('Version: '+state.version.id+' | '+(state.version.label||'')+' | '+(state.version.adjustment_method||'adjustment unavailable'),24,79,w-48);
     g.drawImage(canvas,0,header,w,plotHeight);
     const r=currentResult(),y=header+plotHeight+23;
-    g.fillStyle='#3c5146';g.fillText((evaluable(r)?'Candidate-level ':r&&finite(r.p)?'Source placeholder · ':missingLabel(r)+' · ')+(state.version.p_label||'p')+' = '+exact(r&&r.p)+'  |  '+correctionLabel()+' = '+exact(r&&r.q)+'  |  '+state.edges.length+' matching spatial edges',24,y,w-48);
-    const gradient=g.createLinearGradient(24,0,220,0);ramp.forEach((c,i)=>gradient.addColorStop(i/(ramp.length-1),'rgb('+c.join(',')+')'));g.fillStyle=gradient;g.fillRect(24,y+14,196,8);g.fillStyle='#6c7c72';g.font='10px Arial,sans-serif';g.fillText('−log₁₀(p):  0                      3                       ≥6',24,y+37);
-    g.fillText(state.gene?'Expression: '+state.gene+' · '+(state.section.expression_label||state.sectionMeta.expression_label||'source values'):'States: '+unique(state.section.spots.map(s=>s.state)).join(' · '),245,y+22,w-269);
+    g.fillStyle='#28323c';g.fillText((evaluable(r)?'Candidate-level ':r&&finite(r.p)?'Source placeholder · ':missingLabel(r)+' · ')+(state.version.p_label||'p')+' = '+exact(r&&r.p)+'  |  '+correctionLabel()+' = '+exact(r&&r.q)+'  |  '+state.edges.length+' matching spatial edges',24,y,w-48);
+    const gradient=g.createLinearGradient(24,0,220,0);ramp.forEach((c,i)=>gradient.addColorStop(i/(ramp.length-1),'rgb('+c.join(',')+')'));g.fillStyle=gradient;g.fillRect(24,y+14,196,8);g.fillStyle='#525d68';g.font='10px "Times New Roman",Times,serif';g.fillText('−log₁₀(p):  0                      3                       ≥6',24,y+37);
+    if(state.gene){canvasGeneText(g,[{text:'Expression: ',italic:false},...geneRuns(state.gene),{text:' · '+(state.section.expression_label||state.sectionMeta.expression_label||'source values'),italic:false}],245,y+22,w-269);}else g.fillText('States: '+unique(state.section.spots.map(s=>s.state)).join(' · '),245,y+22,w-269);
     g.fillText('Color and width: candidate-level p. Arrows: ligand → receptor. Equal-aspect coordinates.',24,y+61,w-48);
     g.fillText('Highlight: '+(state.highlight?adjustment(state.version).highlight+' < 0.05':'Off')+' · Edges: '+(state.showEdges?'Shown':'Hidden')+' · Unit: '+((state.sectionMeta.coordinate_system||{}).unit||'source coordinate'),24,y+80,w-48);
     try{output.toBlob(blob=>{if(blob){saveBlob(blob,'LUCENT_'+safeName(state.version.id)+'_'+safeName(state.sectionMeta.id)+'.png');toast('PNG exported.');}},'image/png');}catch(error){toast('Image export blocked. Turn off the tissue image and retry.');}
   }
+  function vectorFigure() {
+    if(!state.section||!state.view||!$('canvas-status').hidden)throw new Error('Wait for a tissue section to finish loading.');
+    const {SVGContext,escape:esc,num}=root.LUCENT_VECTOR;
+    const W=720,margin=24,plotWidth=W-2*margin,plotHeight=(height+32)*plotWidth/(width+90);
+    const recording=new SVGContext(12*(width+90)/plotWidth);
+    const previous=ctx,hovered=state.hovered,dragging=state.dragging;
+    try { ctx=recording;state.hovered=null;state.dragging=null;draw(); }
+    finally {ctx=previous;state.hovered=hovered;state.dragging=dragging;requestDraw();}
+    const text=[],measure=document.createElement('canvas').getContext('2d');let y=27;
+    function line(value,size=12,bold=false,color='#202832',x=margin,maxWidth=W-2*margin,genes=false) {
+      measure.font=(genes?'italic ':'')+(bold?'bold ':'')+size+'px "Times New Roman"';
+      const rows=[];let current='';
+      for(const word of String(value).split(/(\s+)/)) {
+        if(current&&measure.measureText(current+word).width>maxWidth){rows.push(current.trimEnd());current='';}
+        for(const char of word){
+          if(char==='\n'||(current&&measure.measureText(current+char).width>maxWidth)){rows.push(current.trimEnd());current='';}
+          if(char!=='\n'&&(current||!char.match(/\s/)))current+=char;
+        }
+      }
+      if(current)rows.push(current);
+      for(const row of rows){text.push(`<text x="${x}" y="${num(y)}" font-family="Times New Roman, Times, serif" font-size="${size}" font-weight="${bold?600:400}" fill="${color}">${genes?geneRuns(row).map(run=>`<tspan font-style="${run.italic?'italic':'normal'}">${esc(run.text)}</tspan>`).join(''):esc(row)}</text>`);y+=size*1.45;}
+    }
+    line(state.selected?candidateLabel(state.selected):state.sectionMeta.label,18,true,'#202832',margin,W-2*margin,!!state.selected);
+    if(state.selected)line(state.selected.sender_state+' → '+state.selected.receiver_state,13);
+    line((state.sectionMeta.label||state.sectionMeta.id)+' · '+replicateLabel(metadata)+' '+state.sectionMeta.donor_id,12,false,'#525d68');
+    const r=currentResult(),parts=[];
+    if(r&&finite(r.score))parts.push('Coordination score = '+formatNumber(r.score));
+    if(evaluable(r)&&probability(r.p))parts.push('p = '+formatNumber(r.p,'p'));
+    if(r&&probability(r.q))parts.push(correctionLabel()+' = '+formatNumber(r.q,'p'));
+    if(parts.length)line(parts.join('   |   '),12,false,'#525d68');
+    y+=8;const plotY=y;y+=plotHeight+19;
+    line('Coordinates: '+((state.sectionMeta.coordinate_system||{}).unit||'source units')+'   ·   '+(state.showEdges?state.edges.length+' matching edges':'Edges hidden'),11,false,'#525d68');
+    if(state.gene) {
+      const domain=expressionDomain();
+      line(state.gene,12,true,'#202832',margin,W-2*margin,true);line(state.section.expression_label||'Expression',11,false,'#525d68');
+      if(domain){
+        for(let i=0;i<80;i++)text.push(`<rect x="${margin+i*2}" y="${num(y)}" width="2.1" height="9" fill="${expressionColor(domain.min+(domain.max-domain.min)*i/79,domain)}"/>`);
+        y+=24;line(formatNumber(domain.min)+' (light) → '+formatNumber(domain.max)+' (dark); missing values are gray',11,false,'#525d68');
+      }
+    } else {
+      line(currentPointKind().states,12,true);
+      const names=unique(state.section.spots.map(s=>s.state));const colWidth=(W-2*margin)/2;
+      for(let i=0;i<names.length;i+=2){
+        const rowTop=y;let rowEnd=y;
+        for(let j=0;j<2&&i+j<names.length;j++){
+          y=rowTop;const x=margin+j*colWidth;
+          text.push(`<rect x="${x}" y="${num(y-9)}" width="9" height="9" fill="${stateColor(names[i+j])}"/>`);
+          line(names[i+j],11,false,'#202832',x+15,colWidth-24);rowEnd=Math.max(rowEnd,y);
+        }
+        y=rowEnd+3;
+      }
+    }
+    if(state.showEdges){
+      y+=6;line('Edge color and width: candidate-level −log₁₀(p). Arrows: ligand → receptor.',11,false,'#525d68');
+      for(let i=0;i<80;i++)text.push(`<rect x="${margin+i*2}" y="${num(y)}" width="2.1" height="8" fill="${pColor(Math.pow(10,-6*i/79))}"/>`);
+      y+=22;
+      for(const [offset,label,anchor] of [[0,'0','start'],[80,'3','middle'],[160,'≥6','end']])text.push(`<text x="${margin+offset}" y="${num(y)}" font-family="Times New Roman, Times, serif" font-size="10" text-anchor="${anchor}" fill="#525d68">${label}</text>`);
+      y+=15;
+    }
+    if(state.highlight)line('Outline: '+adjustment(state.version).highlight+' < 0.05',11,false,'#525d68');
+    y+=8;line('LUCENT · '+state.version.id+' · '+state.sectionMeta.id,10,false,'#65717c');
+    const H=Math.ceil(y+12),pageHeight=+(H*180/W).toFixed(2);
+    const provenance={section:state.sectionMeta.id,unit:state.selected&&state.selected.unit_id,
+      version:state.version.id,result:r,view:{...state.view},color_gene:state.gene||null,
+      edges_shown:state.showEdges,adjusted_highlight:state.highlight,
+      tissue_image:!!(state.showImage&&state.image),coordinate_system:state.sectionMeta.coordinate_system};
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="180mm" height="${pageHeight}mm" viewBox="0 0 ${W} ${H}" role="img"><title>${esc(state.selected?candidateLabel(state.selected):state.sectionMeta.id)}</title><metadata>${esc(JSON.stringify(provenance))}</metadata><rect width="${W}" height="${H}" fill="white"/>`+
+      `<svg x="${margin}" y="${num(plotY)}" width="${plotWidth}" height="${num(plotHeight)}" viewBox="-60 -12 ${num(width+90)} ${num(height+32)}">${recording.markup()}</svg>`+text.join('')+'</svg>';
+    return {svg,pageHeight,name:'LUCENT_'+safeName(state.sectionMeta.id)+'_'+safeName(state.selected&&state.selected.channel_id||'section')};
+  }
+  function exportSVG() {
+    try {const figure=vectorFigure();saveBlob(new Blob([figure.svg],{type:'image/svg+xml;charset=utf-8'}),figure.name+'.svg');toast('Vector SVG exported.');}
+    catch(error){toast(error.name==='SecurityError'?'The tissue image cannot be embedded. Turn it off and export the vector overlay.':error.message);}
+  }
+  function exportPDF() {
+    try {
+      const figure=vectorFigure(),popup=root.open('','_blank');
+      if(!popup){toast('Allow a new window for the PDF figure.');return;}
+      popup.opener=null;
+      popup.document.open();
+      popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+root.LUCENT_VECTOR.escape(figure.name)+'</title><style>'+
+        '@page{size:180mm '+figure.pageHeight+'mm;margin:0}*{box-sizing:border-box}body{margin:0;background:#e9edf1;font:13px "Times New Roman";color:#202832}'+
+        'nav{padding:16px;display:flex;align-items:center;gap:14px}button{padding:8px 16px;border:1px solid #b6c2cc;background:white;color:#245d82;cursor:pointer}'+
+        'main{width:180mm;background:white;margin:0 auto 24px}main>svg{display:block;width:180mm;height:'+figure.pageHeight+'mm}'+
+        '@media print{nav{display:none}body{background:white;width:180mm}main{margin:0;break-inside:avoid;print-color-adjust:exact;-webkit-print-color-adjust:exact}}'+
+        '</style></head><body><nav><button id="save">Save as PDF</button><span>Select “Save as PDF”; use 100% scale and turn off headers and footers.</span></nav><main>'+figure.svg+'</main></body></html>');
+      popup.document.close();
+      popup.document.getElementById('save').addEventListener('click',()=>popup.print());
+      toast('Vector figure ready. Choose Save as PDF in the new window.');
+    } catch(error){toast(error.name==='SecurityError'?'Turn off the tissue image to export the vector overlay.':error.message);}
+  }
+
   function bindEvents() {
     $('version').addEventListener('change',()=>{state.version=versions.find(v=>v.id===$('version').value);state.filters.evidence=report.units.some(u=>evaluable(resultFor(u,state.version.id)))?'evaluable':'all';state.page=0;updateVersion();updateCandidates();});
     for(const id of ['context','sender','receiver'])$(id).addEventListener('change',()=>{state.filters[id]=$(id).value;state.page=0;if(id==='context')updateSections();updateCandidates();});
@@ -552,6 +663,8 @@
     document.querySelectorAll('[data-sort]').forEach(button=>button.addEventListener('click',()=>{const key=button.dataset.sort;state.ascending=state.sort===key?!state.ascending:key!=='score';state.sort=key;state.page=0;updateCandidates();}));
     $('export-tsv').addEventListener('click',()=>{saveBlob(new Blob(['\ufeff'+unitsTSV(state.filtered,state.version)],{type:'text/tab-separated-values;charset=utf-8'}),'LUCENT_'+safeName(state.version.id)+'_filtered_candidates.tsv');toast(state.filtered.length+' candidates exported.');});
     $('export-png').addEventListener('click',exportPNG);
+    $('export-svg').addEventListener('click',exportSVG);
+    $('export-pdf').addEventListener('click',exportPDF);
     canvas.addEventListener('pointerdown',startPointer);canvas.addEventListener('pointermove',movePointer);canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',()=>{state.dragging=null;canvas.classList.remove('is-dragging');requestDraw();});canvas.addEventListener('pointerleave',()=>{if(!state.dragging){state.hovered=null;$('canvas-tooltip').hidden=true;requestDraw();}});canvas.addEventListener('wheel',zoom,{passive:false});
     canvas.addEventListener('keydown',e=>{if(!state.view)return;const step=40/state.view.scale;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','-','0','Escape'].includes(e.key))e.preventDefault();if(e.key==='ArrowLeft')state.view.cx-=step;if(e.key==='ArrowRight')state.view.cx+=step;if(e.key==='ArrowUp')state.view.cy-=step;if(e.key==='ArrowDown')state.view.cy+=step;if(e.key==='+')state.view.scale=Math.min(state.view.fitScale*100,state.view.scale*1.2);if(e.key==='-')state.view.scale=Math.max(state.view.fitScale*.15,state.view.scale/1.2);if(e.key==='0')fitView();if(e.key==='Escape'){state.dragging=null;$('canvas-tooltip').hidden=true;}requestDraw();});
   }

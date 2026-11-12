@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {SVGContext,escape}=require('../src/lucent/report/assets/vector.js');
+const context=new SVGContext();
+context.save();context.beginPath();context.rect(1,2,30,40);context.clip();
+context.fillStyle='#0072b2';context.beginPath();context.arc(5,6,2,0,2*Math.PI);context.fill();
+context.restore();context.fillText('A<&" μm',12,20);
+const svg=context.markup();
+assert(svg.includes('clip-path="url(#clip0)"'));
+assert(svg.includes('A2 2 0 1 0'));
+assert(svg.includes('A&lt;&amp;&quot; μm'));
+assert(!svg.includes('<image'));
+assert.equal(escape('</script>'), '&lt;/script&gt;');
+assert.throws(()=>context.lineTo(Infinity,0),/Invalid vector coordinate/);
+console.log('SVG recording tests PASS');
