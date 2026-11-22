@@ -83,3 +83,24 @@ LUCENT software is released under the [MIT License](LICENSE). Third-party inputs
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Grouped two-stage calibration
+
+The optional Python API builds the four optimized RC1 kernels and routines on x86-64 Linux or WSL2. Install GCC with OpenMP and glibc development libraries on an AVX2-capable CPU. The standard CLI uses the fixed-budget reference implementation.
+
+This example takes a whole-section NPZ in the [input format](docs/inputs.md). Replace the example names with positive hypotheses from your section. Open one session per worker and reuse it across receiver groups.
+
+```python
+from lucent.spatial import SpatialData
+from lucent.calibration.optimized import optimized_session, adjust_family
+
+data = SpatialData.load("section.npz")
+with optimized_session() as session:
+    rows = session.calibrate_group(
+        data, section="section1", receptor="ITGB1", receiver_label="tumour",
+        hypotheses={"h1": ("FN1", "stroma"), "h2": ("COL4A1", "stroma")},
+        shallow=(999, 1999), deep=(39999, 19999), target=20, cutoff=0.02,
+    )
+```
+
+Each budget gives the inner and maximum outer draws. Hypotheses sharing a receptor and receiving region reuse simulated fields and outer refits. The native kernels accelerate likelihood-grid evaluation, the 256-node check, discretization and positive-rank scoring. Each row records shallow and, on promotion, independently seeded deep tail counts, draws and sequential p-value. To compute BH and BY across a section, collect rows for every eligible positive hypothesis and call `adjust_family(full_family_ids, eligible_positive_ids, rows)` with the complete original family. Nonpromoted and ineligible entries contribute 1 to adjustment.
