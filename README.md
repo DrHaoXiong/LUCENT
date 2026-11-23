@@ -104,3 +104,28 @@ with optimized_session() as session:
 ```
 
 Each budget gives the inner and maximum outer draws. Hypotheses sharing a receptor and receiving region reuse simulated fields and outer refits. The native kernels accelerate likelihood-grid evaluation, the 256-node check, discretization and positive-rank scoring. Each row records shallow and, on promotion, independently seeded deep tail counts, draws and sequential p-value. To compute BH and BY across a section, collect rows for every eligible positive hypothesis and call `adjust_family(full_family_ids, eligible_positive_ids, rows)` with the complete original family. Nonpromoted and ineligible entries contribute 1 to adjustment.
+
+### Parallel section batches
+
+On the same supported Linux platforms, `lucent batch` accepts a full-section NPZ and a JSON list of eligible positive hypotheses. Use the original section, labels, gene identifiers and hypothesis ID types to reproduce the corresponding grouped random streams.
+
+```json
+{
+  "section": "section1",
+  "hypotheses": [
+    {"id": "h1", "ligand": "FN1", "receptor": "ITGB1", "sender_label": "stroma", "receiver_label": "tumour"},
+    {"id": "h2", "ligand": "COL4A1", "receptor": "ITGB1", "sender_label": "stroma", "receiver_label": "tumour"}
+  ],
+  "shallow": [999, 1999], "deep": [39999, 19999], "target": 20, "cutoff": 0.02
+}
+```
+
+```bash
+OMP_THREAD_LIMIT=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  lucent batch --input section.npz --config hypotheses.json --output rows.json \
+  --workers 8 --large-pool-blas-threads 1 --block-size 128
+```
+
+Each group runs its shallow stage and first deep block on one worker. Surviving candidates share the remaining deep draws across workers. The coordinator applies the stopping rule in draw order. A larger block amortizes dispatch overhead but can compute more unused draws near a stopping boundary.
+
+Each worker loads the section and keeps its current receiver group in memory. Choose the worker count for the available memory and physical cores. The example limits OpenMP integration to one thread per worker. Pools above 768 points use the requested BLAS projection budget. For a few concurrent large pools, benchmark a larger BLAS budget within the available cores. The batch defaults are one worker and one projection thread. The single-group Python interface also accepts `large_pool_blas_threads` and retains its default of eight for large pools.

@@ -16,8 +16,9 @@ from . import field_kernel
 from .fit import Moments, Prepared, capsule, make_fit, make_probability
 from .sequential import two_stage
 from .sequential_family import adjust_family
+from .batch import calibrate_batch
 
-__all__ = ["optimized_session", "adjust_family"]
+__all__ = ["optimized_session", "adjust_family", "calibrate_batch"]
 
 
 def _library(directory, name, *, vector=False):
@@ -60,8 +61,17 @@ class _Session:
         self.direct = SimpleNamespace(rectangles=grid, integrate=direct)
         self.grid_prob = make_probability(self.direct)
 
-    def calibrate_group(self, data, section, receptor, receiver_label, hypotheses, **settings):
+    def calibrate_group(self, data, section, receptor, receiver_label, hypotheses, *,
+                        large_pool_blas_threads=8, **settings):
         """hypotheses maps distinct positive hypothesis IDs to (ligand, sender label)."""
+        with self._prepare(data, receptor, receiver_label, hypotheses, large_pool_blas_threads) as group:
+            raw, values, outside, contrasts, backend, fitted, fields = group
+            return two_stage(raw, values, outside, contrasts, list(hypotheses),
+                             (section, receptor, receiver_label), backend, fitted, refit,
+                             fields.score, round_sampler=fields.rounds, **settings)
+
+    @contextmanager
+    def _prepare(self, data, receptor, receiver_label, hypotheses, large_pool_blas_threads):
         from ...spatial import prepare_hypothesis
 
         if not hypotheses:
@@ -74,9 +84,9 @@ class _Session:
             raise ValueError("Grouped calibration requires a full pool of at least 9 and positive contrasts")
         raw, values, outside = (first[k] for k in ("raw", "values", "outside"))
         xy = first["coordinates"]
-        key = (section, receptor, receiver_label)
         model = LazyGeometryModel(xy, GRID_FRACTIONS, GRID_RANGES)
-        backend = CPUBackend(CountGeometry(xy, model), threads=1)
+        backend = CPUBackend(CountGeometry(xy, model), threads=1,
+                             large_pool_blas_threads=large_pool_blas_threads)
         moments = Moments(self.quad)
         try:
             high = Prepared(len(raw), self.direct, moments)
@@ -90,9 +100,7 @@ class _Session:
             fields = field_kernel.FieldKernel(self.fields, CPUBackend.project, values, outside,
                                                small_first=len(rows)==1)
             contrasts = np.stack([row["contrast"] for row in rows])
-            return two_stage(raw, values, outside, contrasts, list(hypotheses), key, backend,
-                             backend.fit(raw), refit, fields.score, round_sampler=fields.rounds,
-                             **settings)
+            yield raw, values, outside, contrasts, backend, backend.fit(raw), fields
         finally:
             moments.close()
             backend.close()
